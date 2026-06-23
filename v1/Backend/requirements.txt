@@ -1,0 +1,10 @@
+torch
+transformers
+librosa
+sounddevice
+easyocr
+opencv-python
+pillow
+numpy
+requests
+openai

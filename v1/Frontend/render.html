@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Cluelite Overlay - Desktop Assistant</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      background: rgba(0, 0, 0, 0.4);
+      font-family: 'Inter', sans-serif;
+      overflow: hidden;
+    }
+
+    .draggable {
+      -webkit-app-region: drag;
+    }
+
+    .no-drag, input, button {
+      -webkit-app-region: no-drag;
+      pointer-events: auto !important; /* Allow interaction */
+    }
+
+    #suggestion-box {
+      pointer-events: none; /* Block interaction here only */
+    }
+
+    .drag-handle {
+      cursor: grab;
+      transition: all 0.2s;
+    }
+
+    .drag-handle:active {
+      cursor: grabbing;
+      transform: scale(0.95);
+    }
+  </style>
+</head>
+
+<body class="h-screen w-screen backdrop-blur-md text-white select-none">
+
+  <!-- Drag Handle -->
+  <div id="drag-handle" class="absolute top-2 left-2 w-8 h-8 flex items-center justify-center drag-handle no-drag z-50">
+    <i class="fas fa-arrows-alt text-white/70 hover:text-white text-xl"></i>
+  </div>
+
+  <!-- Window Controls -->
+  <div class="absolute top-2 right-2 flex gap-2 no-drag z-50">
+    <button id="close-btn" class="text-white text-xl font-bold w-8 h-8 flex items-center justify-center border border-white/30 rounded hover:bg-white/10">✕</button>
+  </div>
+
+  <!-- Main Container -->
+  <div class="relative w-full h-full flex flex-col justify-between px-6 pb-6 border border-white/20 shadow-2xl rounded-lg bg-black/30">
+
+    <div class="draggable" style="height: 48px;"></div>
+
+    <!-- Email Input -->
+    <div class="flex gap-3 mb-4 no-drag">
+      <input id="user-email" type="email" placeholder="Enter your mail"
+        class="w-full px-4 py-2 rounded-md bg-white/10 text-white placeholder-white/70 border border-white/20 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+    </div>
+
+    <!-- Suggestion Box -->
+    <div id="suggestion-box"
+      class="flex-1 overflow-y-auto p-4 rounded-md border border-white/20 text-white mb-4 text-sm no-drag">
+      <p class="opacity-60">💡 Live AI suggestions will appear here...</p>
+    </div>
+
+    <!-- Control Buttons -->
+    <div class="pt-4 no-drag flex gap-2">
+      <button id="start-btn"
+        class="flex-1 py-2 bg-green-600 text-white rounded-md border border-white/20 hover:bg-green-700 font-medium">Start Interview</button>
+      <button id="send-btn"
+        class="flex-1 py-2 bg-red-600 text-white rounded-md border border-white/20 hover:bg-red-700 font-medium">Send Email</button>
+    </div>
+  </div>
+
+  <script>
+    const suggestionBox = document.getElementById("suggestion-box");
+    const dragHandle = document.getElementById("drag-handle");
+    let isSessionActive = false;
+    let isDragging = false;
+    let dragOffset = { x: 0, y: 0 };
+
+    // Drag functionality
+    dragHandle.addEventListener('mousedown', (e) => {
+      isDragging = true;
+      const winPos = window.api.getPosition();
+      dragOffset = {
+        x: e.screenX - winPos.x,
+        y: e.screenY - winPos.y
+      };
+      document.body.style.cursor = 'grabbing';
+    });
+
+    document.addEventListener('mousemove', (e) => {
+      if (isDragging) {
+        window.api.setPosition({
+          x: e.screenX - dragOffset.x,
+          y: e.screenY - dragOffset.y
+        });
+      }
+    });
+
+    document.addEventListener('mouseup', () => {
+      isDragging = false;
+      document.body.style.cursor = '';
+    });
+
+    document.getElementById("close-btn").onclick = () => window.api.close();
+
+    document.getElementById("start-btn").onclick = () => {
+      if (isSessionActive) return;
+      isSessionActive = true;
+      suggestionBox.innerHTML = `<p class="opacity-60">🔄 Processing suggestions...</p>`;
+      window.api.startCluelite();
+    };
+
+    document.getElementById("send-btn").onclick = () => {
+      if (!isSessionActive) return;
+      isSessionActive = false;
+
+      const email = document.getElementById("user-email").value || "test@cluelite.ai";
+      window.api.stopCluelite(email);
+
+      suggestionBox.innerHTML += `<p class="text-green-400 mt-2 text-sm">✅ Session ended. Final email will be sent shortly.</p>`;
+      suggestionBox.scrollTop = suggestionBox.scrollHeight;
+    };
+
+    window.api.onSuggestion((text) => {
+      // Remove "Processing..." if it's the first suggestion
+      const firstChild = suggestionBox.firstChild;
+      if (firstChild && firstChild.textContent.includes("Processing")) {
+        suggestionBox.removeChild(firstChild);
+      }
+
+      const div = document.createElement("div");
+      div.className = "bg-white/5 p-3 rounded border border-white/10 whitespace-pre-wrap mt-2";
+      div.innerHTML = text.replace(/\n/g, "<br>");
+      suggestionBox.appendChild(div);
+      suggestionBox.scrollTop = suggestionBox.scrollHeight;
+    });
+
+    // Hover Detection to allow interaction only on input/button areas
+    window.api.onHoverInit(() => {
+      document.addEventListener("mousemove", (e) => {
+        requestAnimationFrame(() => {
+          const el = document.elementFromPoint(e.clientX, e.clientY);
+          const interactive = el?.closest("input, button, .no-drag");
+          window.api.setInteractive(!!interactive);
+        });
+      });
+    });
+  </script>
+</body>
+</html>
